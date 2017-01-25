@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+documentation=$DIR/node_modules/.bin/documentation
+
+if [ ! -f $documentation ]; then
+  # global install
+  documentation=$DIR/../lib/node_modules/gendo//node_modules/.bin/documentation
+fi
+
+files=${1:-'*.js'}
+
+require_clean_work_tree() {
+  # Update the index
+  git update-index -q --ignore-submodules --refresh
+  err=0
+
+  # Disallow unstaged changes in the working tree
+  if ! git diff-files --quiet --ignore-submodules --
+  then
+      echo >&2 "$1: you have unstaged changes."
+      git diff-files --name-status -r --ignore-submodules -- >&2
+      err=1
+  fi
+
+  # Disallow uncommitted changes in the index
+  if ! git diff-index --cached --quiet HEAD --ignore-submodules --
+  then
+      echo >&2 "$1: your index contains uncommitted changes."
+      git diff-index --cached --name-status -r --ignore-submodules HEAD -- >&2
+      err=1
+  fi
+
+  if [ $err = 1 ]
+  then
+      echo >&2 "Please commit or stash them."
+      exit 1
+  fi
+}
+
+require_gh_pages_branch() {
+  if ! git rev-parse --verify --quiet gh-pages
+  then
+    echo >&2 "gendo: you are missing a 'gh-pages' branch, creating one for you"
+    git branch gh-pages
+  fi
+}
+
+require_readme() {
+  if [ ! -f README.md ]; then
+      echo "$1 since you're missing a README.md"
+      exit 1
+  fi
+}
+
+readme_docs() {
+  $documentation readme $files -s API
+  if ! git diff-files --quiet --ignore-submodules --
+  then
+    git add README.md && git commit -m "docs: gendo updated api in readme"
+  fi
+}
+
+gh_pages_docs() {
+  CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
+
+  git checkout gh-pages                       && \
+  git reset --hard $CURRENT_BRANCH            && \
+  git clean -df                               && \
+  rm -rf assets index.html                    && \
+  $documentation build $files -f html -o .    && \
+  git add assets index.html                   && \
+  git commit -m "gendo: updated api in html"  && \
+  git push -f origin gh-pages                 && \
+  git checkout $CURRENT_BRANCH
+}
+
+require_gh_pages_branch
+require_readme "gendo cannot update your readme"
+require_clean_work_tree "gendo cannot update and commit documentation"
+
+readme_docs
+gh_pages_docs
