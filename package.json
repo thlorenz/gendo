@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/thlorenz/gendo",
   "dependencies": {
-    "documentation": "~4.0.0-beta.18"
+    "documentation": "~9.3.0"
   },
   "keywords": [],
   "author": {
